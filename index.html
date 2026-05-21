@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bootstrapping &middot; Resampling for Confidence Intervals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Spectral:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#efeae0;
+    --paper-2:#e8e2d6;
+    --ink:#39342c;
+    --ink-soft:#6f685c;
+    --ink-faint:#9a9286;
+    --rule:#d6cdbd;
+    --rule-soft:#e0d8c9;
+    --blue:#7f97ae;
+    --blue-edge:#5b7488;
+    --blue-line:#7c93aa;
+    --coral:#c4623b;
+    --coral-dk:#a64e2c;
+    --bar:rgba(199,108,73,0.50);
+    --band:rgba(199,108,73,0.13);
+    --btn-dark:#33302a;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"IBM Plex Mono", ui-monospace, monospace;
+    -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(rgba(120,108,88,0.035) 1px, transparent 1px);
+    background-size:4px 4px;
+  }
+  .wrap{ max-width:1040px; margin:0 auto; padding:38px 34px 56px; }
+
+  /* ---- masthead ---- */
+  .masthead{ display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap; border-bottom:1.5px solid var(--ink); padding-bottom:14px; }
+  .masthead h1{
+    font-family:"Spectral", Georgia, serif;
+    font-weight:400; font-size:30px; line-height:1.05; margin:0;
+    letter-spacing:0.2px;
+  }
+  .masthead h1 em{ font-style:italic; color:var(--ink-soft); }
+  .masthead .kicker{
+    font-size:10.5px; letter-spacing:3px; text-transform:uppercase; color:var(--ink-faint);
+    margin-bottom:7px;
+  }
+  .masthead .dateline{ font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; color:var(--ink-soft); text-align:right; }
+
+  /* ---- stat header ---- */
+  .stats{ display:flex; flex-wrap:wrap; border-bottom:1px solid var(--rule); }
+  .stat{ flex:1 1 0; min-width:104px; padding:13px 16px 14px; border-right:1px solid var(--rule-soft); position:relative; }
+  .stat:last-child{ border-right:none; }
+  .stat .lbl{ font-size:9px; letter-spacing:2.2px; text-transform:uppercase; color:var(--ink-faint); display:flex; align-items:baseline; gap:6px; }
+  .stat .lbl .sym{ font-family:"Spectral", serif; font-style:italic; font-size:12px; letter-spacing:0; color:var(--ink-soft); text-transform:none; }
+  .stat .val{ font-family:"Spectral", Georgia, serif; font-weight:400; font-size:25px; margin-top:5px; line-height:1; font-variant-numeric:tabular-nums; }
+  .stat .val.small{ font-size:18px; }
+
+  /* ---- canvas plate ---- */
+  .plate{ margin-top:6px; }
+  canvas{ width:100%; height:548px; display:block; }
+
+  /* ---- legend ---- */
+  .legend{ display:flex; flex-wrap:wrap; gap:22px; align-items:center; padding:12px 2px 0; border-top:1px solid var(--rule); margin-top:2px; }
+  .leg{ display:flex; align-items:center; gap:8px; font-size:10px; letter-spacing:1.4px; text-transform:uppercase; color:var(--ink-soft); }
+  .leg .dot{ width:11px; height:11px; border-radius:50%; background:var(--blue); border:1px solid var(--blue-edge); }
+  .leg .dash{ width:22px; height:0; border-top:1.5px dashed var(--blue-line); }
+  .leg .tri{ width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid var(--coral); }
+  .leg .sw{ width:16px; height:11px; background:var(--band); border:1px solid var(--coral-dk); }
+  .leg em{ font-family:"Spectral", serif; font-style:italic; text-transform:none; letter-spacing:0; font-size:12px; color:var(--ink); }
+
+  /* ---- controls ---- */
+  .controls{ display:flex; align-items:flex-end; justify-content:space-between; gap:34px; flex-wrap:wrap; margin-top:26px; border-top:1.5px solid var(--ink); padding-top:20px; }
+  .sliders{ flex:1 1 320px; max-width:520px; }
+  .srow{ display:flex; align-items:center; gap:16px; }
+  .srow + .srow{ margin-top:16px; }
+  .srow .meta{ flex:1; }
+  .srow .meta .t{ font-size:12.5px; letter-spacing:0.4px; color:var(--ink); }
+  .srow .meta .s{ font-size:9.5px; letter-spacing:1.4px; text-transform:uppercase; color:var(--ink-faint); margin-top:2px; }
+  .srow .out{ font-family:"Spectral", serif; font-size:17px; min-width:62px; text-align:right; font-variant-numeric:tabular-nums; }
+  .srow .out small{ font-family:"IBM Plex Mono",monospace; font-size:10px; letter-spacing:1px; color:var(--ink-faint); }
+
+  input[type=range]{ -webkit-appearance:none; appearance:none; width:200px; height:22px; background:transparent; cursor:pointer; }
+  input[type=range]::-webkit-slider-runnable-track{ height:2px; background:var(--rule); }
+  input[type=range]::-moz-range-track{ height:2px; background:var(--rule); }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:13px; height:13px; border-radius:50%; background:var(--paper); border:1.5px solid var(--ink); margin-top:-5.5px; }
+  input[type=range]::-moz-range-thumb{ width:13px; height:13px; border-radius:50%; background:var(--paper); border:1.5px solid var(--ink); }
+
+  .actions{ display:flex; flex-direction:column; align-items:flex-end; gap:10px; }
+  .actions .hd{ font-size:9px; letter-spacing:2.6px; text-transform:uppercase; color:var(--ink-faint); }
+  .actbar{ display:flex; gap:9px; }
+  button{
+    font-family:"IBM Plex Mono", monospace; font-size:11px; letter-spacing:1.2px; text-transform:uppercase;
+    padding:11px 16px; border:1px solid var(--ink); background:var(--paper); color:var(--ink);
+    cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:background .15s, color .15s, transform .05s;
+  }
+  button:hover{ background:var(--paper-2); }
+  button:active{ transform:translateY(1px); }
+  button.dark{ background:var(--btn-dark); color:#f0ebe0; border-color:var(--btn-dark); }
+  button.dark:hover{ background:#46423a; }
+  button .gl{ font-size:12px; line-height:1; }
+  .count{ font-size:10px; letter-spacing:1.6px; text-transform:uppercase; color:var(--ink-soft); align-self:center; margin-left:2px; }
+
+  .footnote{ margin-top:30px; border-top:1px solid var(--rule); padding-top:14px; font-family:"Spectral",serif; font-size:13px; line-height:1.6; color:var(--ink-soft); max-width:760px; }
+  .footnote b{ color:var(--ink); font-weight:500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div>
+      <div class="kicker">Resampling Methods</div>
+      <h1>The Bootstrap &mdash; <em>a confidence interval from one sample</em></h1>
+    </div>
+    <div class="dateline">Design &amp; Analysis<br>Lecture Demonstration</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="lbl">Sample mean <span class="sym">x&#772;</span></div><div class="val" id="hMean">0.00</div></div>
+    <div class="stat"><div class="lbl">Sample SD <span class="sym">s</span></div><div class="val" id="hSD">0.00</div></div>
+    <div class="stat"><div class="lbl">Resamples <span class="sym">B</span></div><div class="val" id="hB">0</div></div>
+    <div class="stat"><div class="lbl">Bootstrap mean <span class="sym">x&#772;*</span></div><div class="val" id="hBmean">&mdash;</div></div>
+    <div class="stat"><div class="lbl">Bootstrap SE <span class="sym">SE*</span></div><div class="val" id="hBse">&mdash;</div></div>
+    <div class="stat"><div class="lbl">95% CI</div><div class="val" id="hCI">&mdash;</div></div>
+  </div>
+
+  <div class="plate">
+    <canvas id="cv" role="img" aria-label="Three-tier bootstrap visualization: the observed sample on a line, a single resample drawn with replacement that stacks repeated draws and measures its mean, and the accumulating bootstrap distribution of the mean with a 95 percent percentile confidence interval."></canvas>
+  </div>
+
+  <div class="legend">
+    <div class="leg"><span class="dot"></span> observation</div>
+    <div class="leg"><span class="dash"></span> sample mean <em>x&#772;</em></div>
+    <div class="leg"><span class="tri"></span> resample mean <em>x&#772;*</em></div>
+    <div class="leg"><span class="sw"></span> 95% bootstrap CI <span style="text-transform:none;letter-spacing:0;font-family:Spectral,serif;font-style:italic;">(&ge; 50 resamples)</span></div>
+  </div>
+
+  <div class="controls">
+    <div class="sliders">
+      <div class="srow">
+        <div class="meta"><div class="t">Sample size</div><div class="s">observations drawn &mdash; n</div></div>
+        <input type="range" min="5" max="40" value="15" step="1" id="nSlider">
+        <div class="out"><small>n =</small> <span id="nOut">15</span></div>
+      </div>
+      <div class="srow">
+        <div class="meta"><div class="t">Population skewness</div><div class="s">shape of the parent population</div></div>
+        <input type="range" min="0" max="4" value="1.5" step="0.1" id="skewSlider">
+        <div class="out"><span id="skewOut">1.5</span></div>
+      </div>
+    </div>
+    <div class="actions">
+      <div class="hd">Actions</div>
+      <div class="actbar">
+        <button id="one"><span class="gl">&#9655;</span> Drop one resample</button>
+        <button id="run" class="dark"><span class="gl">&#9776;</span> Run 2,000</button>
+        <button id="fresh"><span class="gl">&#8635;</span> New sample</button>
+      </div>
+      <div class="count" id="count">0 resamples</div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    Each <b>resample</b> draws <em>n</em> observations from the sample <b>with replacement</b> &mdash; some points are picked more than once (they stack), others not at all. The mean of each resample drops into tier&nbsp;3; the <b>2.5th and 97.5th percentiles</b> of that pile give the 95% interval. Raise the skewness and watch the bootstrap interval lean while the normal-theory interval stays stubbornly symmetric.
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var css = getComputedStyle(document.documentElement);
+  function C(n){ return css.getPropertyValue(n).trim(); }
+  var COL = {
+    ink:C('--ink'), soft:C('--ink-soft'), faint:C('--ink-faint'),
+    rule:C('--rule'), ruleSoft:C('--rule-soft'),
+    dot:C('--blue'), dotEdge:C('--blue-edge'), blueLine:C('--blue-line'),
+    coral:C('--coral'), coralDk:C('--coral-dk'), bar:C('--bar'), band:C('--band')
+  };
+
+  function gauss(){ var u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+  function sampleGamma(k){ if(k<1) return sampleGamma(1+k)*Math.pow(Math.random(),1/k); var d=k-1/3,c=1/Math.sqrt(9*d); while(true){ var x,v; do{x=gauss();v=1+c*x;}while(v<=0); v=v*v*v; var u=Math.random(); if(u<1-0.0331*x*x*x*x)return d*v; if(Math.log(u)<0.5*x*x+d*(1-v+Math.log(v)))return d*v; } }
+  function makeDraw(s){ if(s<0.05) return function(){return gauss();}; var k=4/(s*s),sq=Math.sqrt(k); return function(){return (sampleGamma(k)-k)/sq;}; }
+  function mean(a){ var s=0; for(var i=0;i<a.length;i++)s+=a[i]; return s/a.length; }
+  function sdev(a){ var m=mean(a),s=0; for(var i=0;i<a.length;i++)s+=(a[i]-m)*(a[i]-m); return Math.sqrt(s/(a.length-1)); }
+  function pct(s,q){ var i=(s.length-1)*q,lo=Math.floor(i),hi=Math.ceil(i); return s[lo]+(s[hi]-s[lo])*(i-lo); }
+  function ease(t){ return 1-(1-t)*(1-t); }
+  function clamp(t){ return t<0?0:t>1?1:t; }
+
+  var cv=document.getElementById('cv'), ctx;
+  function fit(){ var dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight; cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return {w:w,h:h}; }
+
+  // vertical layout
+  var T1_LBL=24, Y1=118, SMEAN_LBL=96, SEP1=158,
+      T2_LBL=192, Y2BASE=336, RM_APEX=252, RM_LBL=246, SEP2=370,
+      T3_LBL=404, Y3BASE=512, CITOP=424,
+      DSTEP=11, DR=4.6, BARMAX=BARMAX_(), BINS=48;
+  function BARMAX_(){ return 84; }
+
+  var S={N:15,skew:1.5,sample:[],xr:[-3,3],m:0,sd:0,se:0,boot:[],last:null,anim:null};
+
+  function X(v,w){ var ml=18,mr=18,a=S.xr[0],b=S.xr[1]; return ml+(v-a)/(b-a)*(w-ml-mr); }
+
+  function resamplePick(){ var idx=new Array(S.N),counts=new Array(S.N),i; for(i=0;i<S.N;i++)counts[i]=0; var s=0; for(var k=0;k<S.N;k++){ var j=(Math.random()*S.N)|0; idx[k]=j; counts[j]++; s+=S.sample[j]; } return {idx:idx,counts:counts,mean:s/S.N}; }
+
+  function newSample(){ var d=makeDraw(S.skew); S.sample=[]; for(var i=0;i<S.N;i++)S.sample.push(d()); S.m=mean(S.sample); S.sd=sdev(S.sample); S.se=S.sd/Math.sqrt(S.N); var mn=Math.min.apply(null,S.sample),mx=Math.max.apply(null,S.sample),pad=(mx-mn)*0.10||1; S.xr=[mn-pad,mx+pad]; S.boot=[]; S.last=null; S.anim=null; draw(); updateReadouts(); }
+
+  function lbl(text, x, y, size, color, spacing, align, weight){
+    ctx.save();
+    ctx.font=(weight||'')+size+'px "IBM Plex Mono", monospace';
+    if('letterSpacing' in ctx) ctx.letterSpacing=(spacing||0)+'px';
+    ctx.fillStyle=color; ctx.textAlign=align||'left'; ctx.textBaseline='alphabetic';
+    ctx.fillText(text,x,y);
+    ctx.restore();
+  }
+  function serifLbl(text,x,y,size,color,align){
+    ctx.save(); ctx.font='italic '+size+'px "Spectral", serif'; ctx.fillStyle=color; ctx.textAlign=align||'left'; ctx.fillText(text,x,y); ctx.restore();
+  }
+
+  function dot(x,y,fill,edge){ ctx.beginPath(); ctx.arc(x,y,DR,0,2*Math.PI); ctx.globalAlpha=0.88; ctx.fillStyle=fill; ctx.fill(); ctx.globalAlpha=0.55; ctx.lineWidth=0.75; ctx.strokeStyle=edge; ctx.stroke(); ctx.globalAlpha=1; }
+
+  function resampleMarker(x){
+    ctx.strokeStyle=COL.coral; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(x,RM_APEX+8); ctx.lineTo(x,Y2BASE); ctx.stroke();
+    ctx.fillStyle=COL.coral;
+    ctx.beginPath(); ctx.moveTo(x,RM_APEX+8); ctx.lineTo(x-4.5,RM_APEX); ctx.lineTo(x+4.5,RM_APEX); ctx.closePath(); ctx.fill();
+    serifLbl('x\u0304* = '+S.last_show_mean().toFixed(2), x, RM_LBL, 12, COL.coralDk, 'center');
+  }
+  // helper to fetch whatever resample mean is currently displayed
+  S.last_show_mean=function(){ if(S.anim) return S.anim.pick.mean; if(S.last) return S.last.mean; return 0; };
+
+  function tier3(w){
+    var c=new Array(BINS),i; for(i=0;i<BINS;i++)c[i]=0;
+    var a=S.xr[0],b=S.xr[1],bw=(b-a)/BINS;
+    for(i=0;i<S.boot.length;i++){ var v=S.boot[i]; if(v<a||v>=b)continue; var bi=((v-a)/bw)|0; if(bi===BINS)bi--; c[bi]++; }
+    var mc=1; for(i=0;i<BINS;i++) if(c[i]>mc)mc=c[i];
+    var lo=null,hi=null;
+    if(S.boot.length>=50){ var srt=S.boot.slice().sort(function(p,q){return p-q;}); lo=pct(srt,0.025); hi=pct(srt,0.975); }
+    if(lo!==null){ ctx.fillStyle=COL.band; ctx.fillRect(X(lo,w),CITOP,X(hi,w)-X(lo,w),Y3BASE-CITOP); }
+    ctx.fillStyle=COL.bar;
+    for(i=0;i<BINS;i++){ if(!c[i])continue; var bx=X(a+i*bw,w)+0.5,bx2=X(a+(i+1)*bw,w)-0.5,bh=(c[i]/mc)*BARMAX; ctx.fillRect(bx,Y3BASE-bh,Math.max(bx2-bx,0.5),bh); }
+    if(lo!==null){
+      ctx.strokeStyle=COL.coralDk; ctx.lineWidth=1.25;
+      ctx.beginPath(); ctx.moveTo(X(lo,w),CITOP); ctx.lineTo(X(lo,w),Y3BASE); ctx.moveTo(X(hi,w),CITOP); ctx.lineTo(X(hi,w),Y3BASE); ctx.stroke();
+    }
+  }
+
+  function draw(){
+    var d=fit(),w=d.w,h=d.h; ctx.clearRect(0,0,w,h);
+
+    // section headers
+    lbl('01', 18, T1_LBL, 10, COL.faint, 1, 'left');
+    lbl('OBSERVED SAMPLE', 42, T1_LBL, 11, COL.ink, 2, 'left', '600 ');
+    serifLbl('n = '+S.N+', drawn from a skewed population', 42, T1_LBL+15, 12.5, COL.soft);
+
+    lbl('02', 18, T2_LBL, 10, COL.faint, 1, 'left');
+    lbl('RESAMPLE WITH REPLACEMENT', 42, T2_LBL, 11, COL.ink, 2, 'left', '600 ');
+    serifLbl('n draws \u00b7 mean of this resample', 42, T2_LBL+15, 12.5, COL.soft);
+
+    lbl('03', 18, T3_LBL, 10, COL.faint, 1, 'left');
+    lbl('SAMPLING DISTRIBUTION OF THE MEAN', 42, T3_LBL, 11, COL.ink, 2, 'left', '600 ');
+    serifLbl(S.boot.length+' resample mean'+(S.boot.length===1?'':'s'), 42, T3_LBL+15, 12.5, COL.soft);
+
+    // separators
+    ctx.strokeStyle=COL.ruleSoft; ctx.lineWidth=1; ctx.setLineDash([2,5]);
+    ctx.beginPath(); ctx.moveTo(18,SEP1); ctx.lineTo(w-18,SEP1); ctx.moveTo(18,SEP2); ctx.lineTo(w-18,SEP2); ctx.stroke(); ctx.setLineDash([]);
+
+    // sample-mean dashed line through all tiers
+    var mx=X(S.m,w);
+    ctx.strokeStyle=COL.blueLine; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(mx,SMEAN_LBL+8); ctx.lineTo(mx,Y3BASE); ctx.stroke(); ctx.setLineDash([]);
+    // sample-mean label centred right above the line
+    var lx=Math.max(58, Math.min(mx, w-58));
+    serifLbl('x\u0304 = '+S.m.toFixed(2), lx, SMEAN_LBL, 12.5, COL.blueLine, 'center');
+
+    // tier 1 line + dots
+    ctx.strokeStyle=COL.rule; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(18,Y1); ctx.lineTo(w-18,Y1); ctx.stroke();
+    for(var i=0;i<S.N;i++) dot(X(S.sample[i],w),Y1,COL.dot,COL.dotEdge);
+
+    // tier 3 axis
+    ctx.strokeStyle=COL.rule; ctx.beginPath(); ctx.moveTo(18,Y3BASE); ctx.lineTo(w-18,Y3BASE); ctx.stroke();
+    for(i=0;i<=6;i++){
+      var v=S.xr[0]+(S.xr[1]-S.xr[0])*i/6, px=X(v,w);
+      ctx.strokeStyle=COL.rule; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(px,Y3BASE); ctx.lineTo(px,Y3BASE+4); ctx.stroke();
+      var t=(v>=0?'+':'')+v.toFixed(1);
+      lbl(t, px, Y3BASE+18, 10, COL.faint, 0.5, 'center');
+    }
+
+    // tier 2 baseline number line (dots rest on this)
+    ctx.strokeStyle=COL.rule; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(18,Y2BASE); ctx.lineTo(w-18,Y2BASE); ctx.stroke();
+    for(i=0;i<=6;i++){
+      var v2=S.xr[0]+(S.xr[1]-S.xr[0])*i/6, px2=X(v2,w);
+      ctx.strokeStyle=COL.rule; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(px2,Y2BASE); ctx.lineTo(px2,Y2BASE+4); ctx.stroke();
+    }
+
+    // tier 2 + drop animation
+    if(S.anim){
+      var A=S.anim, el=performance.now()-A.t0;
+      for(var f=0;f<A.fallers.length;f++){ var F=A.fallers[f]; var tt=clamp((el-F.delay)/F.dur); if(tt<=0)continue; var ty=Y2BASE-F.level*DSTEP-DR, cy=Y1+(ty-Y1)*ease(tt); dot(F.x,cy,COL.dot,COL.dotEdge); }
+      if(el>=A.p1End) resampleMarker(X(A.pick.mean,w));
+      if(el>=A.pauseEnd){ var t2=clamp((el-A.pauseEnd)/(A.p2End-A.pauseEnd)); var sy=RM_APEX+18,tyy=Y3BASE-6,ccy=sy+(tyy-sy)*ease(t2); dot(X(A.pick.mean,w),ccy,COL.coral,COL.coralDk); }
+    } else if(S.last){
+      var cnt=S.last.counts;
+      for(i=0;i<S.N;i++){ for(var L=0;L<cnt[i];L++) dot(X(S.sample[i],w),Y2BASE-L*DSTEP-DR,COL.dot,COL.dotEdge); }
+      resampleMarker(X(S.last.mean,w));
+    }
+
+    tier3(w);
+  }
+
+  function fmt(x){ return (x>=0?'':'')+x.toFixed(3); }
+  function updateReadouts(){
+    document.getElementById('count').textContent=S.boot.length.toLocaleString()+' resample'+(S.boot.length===1?'':'s');
+    document.getElementById('hMean').textContent=S.m.toFixed(3);
+    document.getElementById('hSD').textContent=S.sd.toFixed(3);
+    document.getElementById('hB').textContent=S.boot.length.toLocaleString();
+    if(S.boot.length>=1){
+      document.getElementById('hBmean').textContent=mean(S.boot).toFixed(3);
+    } else document.getElementById('hBmean').innerHTML='&mdash;';
+    if(S.boot.length>=2){
+      document.getElementById('hBse').textContent=sdev(S.boot).toFixed(3);
+    } else document.getElementById('hBse').innerHTML='&mdash;';
+    if(S.boot.length>=50){
+      var srt=S.boot.slice().sort(function(a,b){return a-b;}),lo=pct(srt,0.025),hi=pct(srt,0.975);
+      document.getElementById('hCI').textContent='['+lo.toFixed(2)+', '+hi.toFixed(2)+']';
+    } else document.getElementById('hCI').innerHTML='&mdash;';
+  }
+
+  var raf=null;
+  function loop(){ draw(); if(S.anim){ if(performance.now()-S.anim.t0>=S.anim.p2End){ finalize(); } else { raf=requestAnimationFrame(loop); return; } } raf=null; }
+  function finalize(){ S.boot.push(S.anim.pick.mean); S.last={counts:S.anim.pick.counts,mean:S.anim.pick.mean}; S.anim=null; draw(); updateReadouts(); }
+  function startDrop(){ if(S.anim||timer) return; var pick=resamplePick(); var lvl=new Array(S.N),i; for(i=0;i<S.N;i++)lvl[i]=0; var fallers=[]; var stag=Math.min(48,540/S.N),fd=360; var w=fit().w; for(var o=0;o<S.N;o++){ var j=pick.idx[o]; fallers.push({x:X(S.sample[j],w),level:lvl[j]++,delay:o*stag,dur:fd}); } var p1=(S.N-1)*stag+fd,pa=p1+280,p2=pa+480; S.anim={pick:pick,t0:performance.now(),fallers:fallers,p1End:p1,pauseEnd:pa,p2End:p2}; if(!raf) loop(); }
+
+  var timer=null;
+  function stopRun(){ if(timer){ clearInterval(timer); timer=null; } }
+  function runMany(){ if(S.anim) return; stopRun(); var added=0,lastShow=0; timer=setInterval(function(){ var lp; for(var i=0;i<6 && added<2000;i++){ lp=resamplePick(); S.boot.push(lp.mean); added++; } var now=performance.now(); if(lp && now-lastShow>150){ S.last={counts:lp.counts,mean:lp.mean}; lastShow=now; } draw(); updateReadouts(); if(added>=2000)stopRun(); },22); }
+
+  document.getElementById('one').addEventListener('click',startDrop);
+  document.getElementById('run').addEventListener('click',runMany);
+  document.getElementById('fresh').addEventListener('click',function(){ stopRun(); newSample(); });
+  document.getElementById('nSlider').addEventListener('input',function(e){ stopRun(); S.N=+e.target.value; document.getElementById('nOut').textContent=S.N; newSample(); });
+  document.getElementById('skewSlider').addEventListener('input',function(e){ stopRun(); S.skew=+e.target.value; document.getElementById('skewOut').textContent=S.skew.toFixed(1); newSample(); });
+  var rt; window.addEventListener('resize',function(){ clearTimeout(rt); rt=setTimeout(draw,120); });
+
+  newSample();
+})();
+</script>
+</body>
+</html>
